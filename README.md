@@ -29,7 +29,9 @@ Uses the Windows `winsound` module to play a pure sine tone for each digit. No e
 
 Plays the source recordings from the selected `--source` folder directly, without any pitch-shifting. Useful for auditioning the source files or checking trim results. Requires `librosa` and `sounddevice`.
 
-### `speech`
+### `speech` *(needs work — use `raw` instead)*
+
+> **Note:** The pitch-shifting pipeline does not yet produce satisfactory results. `--mode raw` is currently recommended for spoken-digit playback.
 
 Speaks each digit aloud ("zero", "one", …) at its mapped musical pitch. The pipeline is:
 

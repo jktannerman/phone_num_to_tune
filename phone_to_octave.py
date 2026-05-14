@@ -196,7 +196,6 @@ def _play_audio_sequence(
             y, sr = audio[char]
             sd.play(y, sr)
             sd.wait()
-            time.sleep(_GAP_S)
         else:
             time.sleep(pause_ms / 1000.0)
 
@@ -222,9 +221,9 @@ def main() -> None:
     parser.add_argument(
         "--duration",
         type=int,
-        default=1000,
+        default=750,
         metavar="MS",
-        help="Note duration in milliseconds for beep mode (default: 1000)",
+        help="Note duration in milliseconds for beep mode (default: 750)",
     )
     parser.add_argument(
         "--pause",
