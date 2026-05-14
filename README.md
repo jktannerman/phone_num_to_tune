@@ -84,7 +84,9 @@ python phone_to_octave.py "555 1234" --mode speech
 
 These scripts are standalone tools intended to be run manually to prepare the `audio_numbers/` source files used by `--mode speech`. They are not called by the main program.
 
-### `split_digits.py`
+> **Status:** `split_digits.py` does not currently work properly. `split_equal.py` works but produces chunks that include periods of silence. `split_manual.py` is the recommended approach at this time.
+
+### `split_digits.py` *(not working)*
 
 Splits a single recording of the spoken digits 0–9 (in order) into ten separate files, one per digit, stripping silence between them. It searches a grid of silence-threshold and minimum-silence-gap values to find a combination that produces exactly 10 non-silent chunks. If no combination succeeds, it falls back to the closest result above 10 chunks and writes those files so the split points can be inspected manually.
 
@@ -94,7 +96,7 @@ python split_digits.py <input_file> [-o OUTPUT_DIR]
 
 Output files are named `0.<ext>` through `9.<ext>` and written to `digits/` next to the input file by default.
 
-### `split_equal.py`
+### `split_equal.py` *(produces silence)*
 
 Splits an audio file into 10 chunks of equal duration. Useful as a quick sanity check to see where the digit boundaries actually fall in the recording before running `split_digits.py`.
 
@@ -104,7 +106,7 @@ python split_equal.py <input_file> [-o OUTPUT_DIR]
 
 Output files are named `0.<ext>` through `9.<ext>` and written to `chunks/` next to the input file by default.
 
-### `split_manual.py`
+### `split_manual.py` *(recommended)*
 
 Splits an audio file at exact timestamps supplied in a plain-text file. Each non-blank, non-comment line in the timestamps file contains a `start end` pair in seconds:
 
