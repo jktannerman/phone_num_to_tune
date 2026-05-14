@@ -32,18 +32,18 @@ DIGIT_NOTES: dict[str, str] = {
     "5": "G4", "6": "A4", "7": "B4", "8": "C5", "9": "D5",
 }
 
-_AUDIO_NUMBERS_DIR = Path(__file__).parent / "audio_numbers" / "25th_chunks"
+_AUDIO_NUMBERS_DIR = Path(__file__).parent / "audio_numbers"
 _SPEECH_CACHE_DIR = Path(__file__).parent / "speech_cache"
 
 # Short silent gap between consecutive notes so repeated digits stay distinct
 _GAP_S = 0.05
 
 
-def _cache_path(digit: str) -> Path:
+def _cache_path(digit: str, source_name: str) -> Path:
     """Return the WAV path for a digit's pitch-shifted audio."""
     freq = DIGIT_FREQUENCIES[digit]
     note = DIGIT_NOTES[digit]
-    return _SPEECH_CACHE_DIR / f"{digit}_{note}_{freq:.2f}hz.wav"
+    return _SPEECH_CACHE_DIR / source_name / f"{digit}_{note}_{freq:.2f}hz.wav"
 
 
 def play_phone_number(phone_number: str, duration_ms: int, pause_ms: int) -> None:
@@ -68,7 +68,7 @@ def play_phone_number(phone_number: str, duration_ms: int, pause_ms: int) -> Non
             time.sleep(pause_ms / 1000.0)
 
 
-def build_speech_cache() -> dict[str, tuple[object, int]]:
+def build_speech_cache(source_dir: Path) -> dict[str, tuple[object, int]]:
     """Load or generate pitch-shifted spoken audio for all ten digits.
 
     Cached WAV files are stored in ``speech_cache/`` next to this script,
@@ -98,10 +98,11 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
             f"\nMissing: {exc}"
         )
 
-    missing = [d for d in DIGIT_WORDS if not _cache_path(d).exists()]
+    source_name = source_dir.name
+    missing = [d for d in DIGIT_WORDS if not _cache_path(d, source_name).exists()]
     if missing:
-        print(f"Generating {len(missing)} new clip(s):")
-        _SPEECH_CACHE_DIR.mkdir(exist_ok=True)
+        print(f"Generating {len(missing)} new clip(s) from '{source_name}':")
+        (_SPEECH_CACHE_DIR / source_name).mkdir(parents=True, exist_ok=True)
 
         for i, digit in enumerate(missing, 1):
             word = DIGIT_WORDS[digit]
@@ -109,7 +110,7 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
             target_hz = DIGIT_FREQUENCIES[digit]
             print(f"  [{i}/{len(missing)}] {word!r:>8}  ({note}, {target_hz:.2f} Hz)...", end=" ", flush=True)
 
-            src = next(_AUDIO_NUMBERS_DIR.glob(f"{digit}.*"))
+            src = next(source_dir.glob(f"{digit}.*"))
             y, sr = librosa.load(str(src), sr=None, mono=True)
             y, _ = librosa.effects.trim(y, top_db=25)
 
@@ -123,18 +124,18 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
             n_steps: float = 12.0 * np.log2(target_hz / source_hz) - 24.0
             y_shifted = librosa.effects.pitch_shift(y, sr=sr, n_steps=n_steps)
 
-            sf.write(str(_cache_path(digit)), y_shifted, sr)
+            sf.write(str(_cache_path(digit, source_name)), y_shifted, sr)
             print("done.")
 
     audio_cache: dict[str, tuple[object, int]] = {}
     for digit in DIGIT_WORDS:
-        y, sr = librosa.load(str(_cache_path(digit)), sr=None, mono=True)
+        y, sr = librosa.load(str(_cache_path(digit, source_name)), sr=None, mono=True)
         audio_cache[digit] = (y, sr)
 
     return audio_cache
 
 
-def _load_audio_sources() -> dict[str, tuple[object, int]]:
+def _load_audio_sources(source_dir: Path) -> dict[str, tuple[object, int]]:
     """Load the raw source files from ``audio_numbers/`` for all ten digits.
 
     Returns:
@@ -156,9 +157,9 @@ def _load_audio_sources() -> dict[str, tuple[object, int]]:
 
     sources: dict[str, tuple[object, int]] = {}
     for digit in DIGIT_WORDS:
-        matches = list(_AUDIO_NUMBERS_DIR.glob(f"{digit}.*"))
+        matches = list(source_dir.glob(f"{digit}.*"))
         if not matches:
-            sys.exit(f"Source file for digit '{digit}' not found in {_AUDIO_NUMBERS_DIR}")
+            sys.exit(f"Source file for digit '{digit}' not found in {source_dir}")
         y, sr = librosa.load(str(matches[0]), sr=None, mono=True)
         sources[digit] = (y, sr)
     return sources
@@ -213,16 +214,17 @@ def main() -> None:
             '  python phone_to_octave.py "867-5309" --duration 400\n'
             '  python phone_to_octave.py "1 800 555 0199" --duration 250 --pause 600\n'
             '  python phone_to_octave.py "555 1234" --mode speech\n'
-            '  python phone_to_octave.py "555 1234" --mode raw'
+            '  python phone_to_octave.py "555 1234" --mode speech --source 31st_chunks\n'
+            '  python phone_to_octave.py "555 1234" --mode raw --source 18th_chunks'
         ),
     )
     parser.add_argument("phone_number", type=str, help="Phone number string to play")
     parser.add_argument(
         "--duration",
         type=int,
-        default=500,
+        default=1000,
         metavar="MS",
-        help="Note duration in milliseconds for beep mode (default: 500)",
+        help="Note duration in milliseconds for beep mode (default: 1000)",
     )
     parser.add_argument(
         "--pause",
@@ -232,6 +234,16 @@ def main() -> None:
         help=(
             "Silence duration for spaces in milliseconds "
             "(default: same as --duration)"
+        ),
+    )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default="25th_chunks",
+        metavar="FOLDER",
+        help=(
+            "Subfolder of audio_numbers/ to use as source recordings for "
+            "'speech' and 'raw' modes (default: 25th_chunks)"
         ),
     )
     parser.add_argument(
@@ -254,10 +266,17 @@ def main() -> None:
     if pause_ms <= 0:
         parser.error("--pause must be a positive integer")
 
-    if args.mode == "speech":
-        _play_audio_sequence(args.phone_number, pause_ms, build_speech_cache())
-    elif args.mode == "raw":
-        _play_audio_sequence(args.phone_number, pause_ms, _load_audio_sources())
+    if args.mode in ("speech", "raw"):
+        source_dir = _AUDIO_NUMBERS_DIR / args.source
+        if not source_dir.is_dir():
+            parser.error(
+                f"--source '{args.source}' not found in {_AUDIO_NUMBERS_DIR}\n"
+                f"Available: {', '.join(p.name for p in sorted(_AUDIO_NUMBERS_DIR.iterdir()) if p.is_dir())}"
+            )
+        if args.mode == "speech":
+            _play_audio_sequence(args.phone_number, pause_ms, build_speech_cache(source_dir))
+        else:
+            _play_audio_sequence(args.phone_number, pause_ms, _load_audio_sources(source_dir))
     else:
         play_phone_number(args.phone_number, args.duration, pause_ms)
 

@@ -27,13 +27,13 @@ Uses the Windows `winsound` module to play a pure sine tone for each digit. No e
 
 ### `raw`
 
-Plays the source recordings from `audio_numbers/18th_chunks/` directly, without any pitch-shifting. Useful for auditioning the source files or checking trim results. Requires `librosa` and `sounddevice`.
+Plays the source recordings from the selected `--source` folder directly, without any pitch-shifting. Useful for auditioning the source files or checking trim results. Requires `librosa` and `sounddevice`.
 
 ### `speech`
 
 Speaks each digit aloud ("zero", "one", …) at its mapped musical pitch. The pipeline is:
 
-1. Source recordings are loaded from `audio_numbers/18th_chunks/`, one file per digit (`0.*` – `9.*`). Any format supported by librosa/soundfile is accepted (e.g. WAV, M4A, FLAC).
+1. Source recordings are loaded from a subfolder of `audio_numbers/`, one file per digit (`0.*` – `9.*`). Any format supported by librosa/soundfile is accepted (e.g. WAV, M4A, FLAC). The subfolder is selected with `--source` (default: `31st_chunks`).
 2. `librosa.yin` estimates each recording's fundamental frequency.
 3. `librosa.effects.pitch_shift` shifts the clip to the target note via a phase-vocoder.
 4. The result is saved to `speech_cache/` as a WAV named after the digit, note, and frequency (e.g. `1_C4_261.63hz.wav`). On subsequent runs, existing files are loaded directly — only missing clips are regenerated.
@@ -64,7 +64,8 @@ python phone_to_octave.py <phone_number> [--mode {beep,speech}] [--duration MS] 
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `phone_number` | — | The phone number string to play |
-| `--mode` | `beep` | Playback mode: `beep` or `speech` |
+| `--source FOLDER` | `31st_chunks` | Subfolder of `audio_numbers/` to use for `speech` and `raw` modes |
+| `--mode` | `beep` | Playback mode: `beep`, `speech`, or `raw` |
 | `--duration MS` | `500` | Note duration in milliseconds (beep mode) |
 | `--pause MS` | same as `--duration` | Silence duration for spaces in milliseconds |
 
