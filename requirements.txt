@@ -1,5 +1,4 @@
 # Required for --mode speech
 librosa
-pyttsx3
 sounddevice
 soundfile

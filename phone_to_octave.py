@@ -2,9 +2,7 @@
 """Play musical notes corresponding to phone number digits via winsound or pitched speech."""
 
 import argparse
-import os
 import sys
-import tempfile
 import time
 import winsound
 from pathlib import Path
@@ -34,6 +32,7 @@ DIGIT_NOTES: dict[str, str] = {
     "5": "G4", "6": "A4", "7": "B4", "8": "C5", "9": "D5",
 }
 
+_AUDIO_NUMBERS_DIR = Path(__file__).parent / "audio_numbers"
 _SPEECH_CACHE_DIR = Path(__file__).parent / "speech_cache"
 
 # Short silent gap between consecutive notes so repeated digits stay distinct
@@ -91,12 +90,11 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
     try:
         import librosa
         import numpy as np
-        import pyttsx3
         import soundfile as sf
     except ImportError as exc:
         sys.exit(
             "Speech mode requires additional packages. Install with:\n"
-            "  py -3.13 -m pip install librosa pyttsx3 sounddevice soundfile\n"
+            "  py -3.13 -m pip install librosa sounddevice soundfile\n"
             f"\nMissing: {exc}"
         )
 
@@ -104,7 +102,6 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
     if missing:
         print(f"Generating {len(missing)} new clip(s):")
         _SPEECH_CACHE_DIR.mkdir(exist_ok=True)
-        engine = pyttsx3.init()
 
         for i, digit in enumerate(missing, 1):
             word = DIGIT_WORDS[digit]
@@ -112,15 +109,7 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
             target_hz = DIGIT_FREQUENCIES[digit]
             print(f"  [{i}/{len(missing)}] {word!r:>8}  ({note}, {target_hz:.2f} Hz)...", end=" ", flush=True)
 
-            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-            tmp_path = tmp.name
-            tmp.close()
-
-            engine.save_to_file(word, tmp_path)
-            engine.runAndWait()
-
-            y, sr = librosa.load(tmp_path, sr=None, mono=True)
-            os.unlink(tmp_path)
+            y, sr = librosa.load(str(_AUDIO_NUMBERS_DIR / f"{digit}.wav"), sr=None, mono=True)
 
             # Estimate the voiced fundamental; fall back to a typical male pitch
             f0: object = librosa.yin(y, fmin=50.0, fmax=600.0)
