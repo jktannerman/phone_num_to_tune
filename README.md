@@ -29,7 +29,7 @@ Uses the Windows `winsound` module to play a pure sine tone for each digit. No e
 
 Speaks each digit aloud ("zero", "one", …) at its mapped musical pitch. The pipeline is:
 
-1. Source recordings are loaded from `audio_numbers/0.wav` – `audio_numbers/9.wav`.
+1. Source recordings are loaded from `audio_numbers/18th_chunks/`, one file per digit (`0.*` – `9.*`). Any format supported by librosa/soundfile is accepted (e.g. WAV, M4A, FLAC).
 2. `librosa.yin` estimates each recording's fundamental frequency.
 3. `librosa.effects.pitch_shift` shifts the clip to the target note via a phase-vocoder.
 4. The result is saved to `speech_cache/` as a WAV named after the digit, note, and frequency (e.g. `1_C4_261.63hz.wav`). On subsequent runs, existing files are loaded directly — only missing clips are regenerated.
@@ -72,3 +72,27 @@ python phone_to_octave.py "867-5309" --duration 400
 python phone_to_octave.py "1 800 555 0199" --duration 250 --pause 600
 python phone_to_octave.py "555 1234" --mode speech
 ```
+
+## Audio preparation utilities
+
+These scripts are standalone tools intended to be run manually to prepare the `audio_numbers/` source files used by `--mode speech`. They are not called by the main program.
+
+### `split_digits.py`
+
+Splits a single recording of the spoken digits 0–9 (in order) into ten separate files, one per digit, stripping silence between them. It searches a grid of silence-threshold and minimum-silence-gap values to find a combination that produces exactly 10 non-silent chunks. If no combination succeeds, it falls back to the closest result above 10 chunks and writes those files so the split points can be inspected manually.
+
+```
+python split_digits.py <input_file> [-o OUTPUT_DIR]
+```
+
+Output files are named `0.<ext>` through `9.<ext>` and written to `digits/` next to the input file by default.
+
+### `split_equal.py`
+
+Splits an audio file into 10 chunks of equal duration. Useful as a quick sanity check to see where the digit boundaries actually fall in the recording before running `split_digits.py`.
+
+```
+python split_equal.py <input_file> [-o OUTPUT_DIR]
+```
+
+Output files are named `0.<ext>` through `9.<ext>` and written to `chunks/` next to the input file by default.

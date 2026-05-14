@@ -32,7 +32,7 @@ DIGIT_NOTES: dict[str, str] = {
     "5": "G4", "6": "A4", "7": "B4", "8": "C5", "9": "D5",
 }
 
-_AUDIO_NUMBERS_DIR = Path(__file__).parent / "audio_numbers"
+_AUDIO_NUMBERS_DIR = Path(__file__).parent / "audio_numbers" / "18th_chunks"
 _SPEECH_CACHE_DIR = Path(__file__).parent / "speech_cache"
 
 # Short silent gap between consecutive notes so repeated digits stay distinct
@@ -109,11 +109,15 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
             target_hz = DIGIT_FREQUENCIES[digit]
             print(f"  [{i}/{len(missing)}] {word!r:>8}  ({note}, {target_hz:.2f} Hz)...", end=" ", flush=True)
 
-            y, sr = librosa.load(str(_AUDIO_NUMBERS_DIR / f"{digit}.wav"), sr=None, mono=True)
+            src = next(_AUDIO_NUMBERS_DIR.glob(f"{digit}.*"))
+            y, sr = librosa.load(str(src), sr=None, mono=True)
+            y, _ = librosa.effects.trim(y, top_db=25)
 
-            # Estimate the voiced fundamental; fall back to a typical male pitch
-            f0: object = librosa.yin(y, fmin=50.0, fmax=600.0)
-            voiced = f0[f0 > 50.0]
+            # pyin is the probabilistic variant of yin; it returns per-frame
+            # voiced/unvoiced flags, which avoids the octave errors that plain
+            # yin produces when it locks onto a sub-harmonic.
+            f0, voiced_flag, _ = librosa.pyin(y, sr=sr, fmin=70.0, fmax=400.0)
+            voiced = f0[voiced_flag]
             source_hz: float = float(np.median(voiced)) if len(voiced) > 0 else 150.0
 
             n_steps: float = 12.0 * np.log2(target_hz / source_hz)
