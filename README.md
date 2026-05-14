@@ -25,6 +25,10 @@ Spaces in the input cause a silence. Hyphens, parentheses, and other separators 
 
 Uses the Windows `winsound` module to play a pure sine tone for each digit. No extra dependencies required.
 
+### `raw`
+
+Plays the source recordings from `audio_numbers/18th_chunks/` directly, without any pitch-shifting. Useful for auditioning the source files or checking trim results. Requires `librosa` and `sounddevice`.
+
 ### `speech`
 
 Speaks each digit aloud ("zero", "one", …) at its mapped musical pitch. The pipeline is:
@@ -96,3 +100,23 @@ python split_equal.py <input_file> [-o OUTPUT_DIR]
 ```
 
 Output files are named `0.<ext>` through `9.<ext>` and written to `chunks/` next to the input file by default.
+
+### `split_manual.py`
+
+Splits an audio file at exact timestamps supplied in a plain-text file. Each non-blank, non-comment line in the timestamps file contains a `start end` pair in seconds:
+
+```
+# timestamps.txt
+0.000 1.450   # zero
+1.600 2.800   # one
+...
+```
+
+Use `--generate` to produce a pre-filled template (equal chunks) as a starting point, then adjust the values by hand:
+
+```
+python split_manual.py <input_file> --generate timestamps.txt
+python split_manual.py <input_file> -t timestamps.txt [-o OUTPUT_DIR]
+```
+
+Output files are named `0.<ext>` through `N.<ext>` and written to `manual/` next to the input file by default.

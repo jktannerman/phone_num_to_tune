@@ -32,7 +32,7 @@ DIGIT_NOTES: dict[str, str] = {
     "5": "G4", "6": "A4", "7": "B4", "8": "C5", "9": "D5",
 }
 
-_AUDIO_NUMBERS_DIR = Path(__file__).parent / "audio_numbers" / "18th_chunks"
+_AUDIO_NUMBERS_DIR = Path(__file__).parent / "audio_numbers" / "25th_chunks"
 _SPEECH_CACHE_DIR = Path(__file__).parent / "speech_cache"
 
 # Short silent gap between consecutive notes so repeated digits stay distinct
@@ -120,7 +120,7 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
             voiced = f0[voiced_flag]
             source_hz: float = float(np.median(voiced)) if len(voiced) > 0 else 150.0
 
-            n_steps: float = 12.0 * np.log2(target_hz / source_hz)
+            n_steps: float = 12.0 * np.log2(target_hz / source_hz) - 24.0
             y_shifted = librosa.effects.pitch_shift(y, sr=sr, n_steps=n_steps)
 
             sf.write(str(_cache_path(digit)), y_shifted, sr)
@@ -134,35 +134,65 @@ def build_speech_cache() -> dict[str, tuple[object, int]]:
     return audio_cache
 
 
-def play_phone_number_speech(
+def _load_audio_sources() -> dict[str, tuple[object, int]]:
+    """Load the raw source files from ``audio_numbers/`` for all ten digits.
+
+    Returns:
+        A dict mapping each digit character to a ``(audio_array, sample_rate)``
+        tuple ready for playback.
+
+    Raises:
+        SystemExit: If required packages are not installed or a source file is
+            missing.
+    """
+    try:
+        import librosa
+    except ImportError as exc:
+        sys.exit(
+            "Raw mode requires additional packages. Install with:\n"
+            "  py -3.13 -m pip install librosa sounddevice\n"
+            f"\nMissing: {exc}"
+        )
+
+    sources: dict[str, tuple[object, int]] = {}
+    for digit in DIGIT_WORDS:
+        matches = list(_AUDIO_NUMBERS_DIR.glob(f"{digit}.*"))
+        if not matches:
+            sys.exit(f"Source file for digit '{digit}' not found in {_AUDIO_NUMBERS_DIR}")
+        y, sr = librosa.load(str(matches[0]), sr=None, mono=True)
+        sources[digit] = (y, sr)
+    return sources
+
+
+def _play_audio_sequence(
     phone_number: str,
     pause_ms: int,
-    cache: dict[str, tuple[object, int]],
+    audio: dict[str, tuple[object, int]],
 ) -> None:
-    """Play pitched spoken digits for a phone number string.
+    """Play a sequence of audio clips for each digit in a phone number string.
 
     Args:
-        phone_number: The string to play. Digits are spoken at their mapped
-            musical pitch, spaces cause a pause, and other characters are
-            silently ignored.
+        phone_number: The string to play. Digits are looked up in ``audio``,
+            spaces cause a pause, and other characters are silently ignored.
         pause_ms: Duration of silence inserted for each space character in
             milliseconds.
-        cache: Pre-generated audio returned by :func:`build_speech_cache`.
+        audio: Dict mapping digit characters to ``(audio_array, sample_rate)``
+            tuples.
     """
     try:
         import sounddevice as sd
     except ImportError as exc:
         sys.exit(
-            "Speech mode requires additional packages. Install with:\n"
-            "  py -3.13 -m pip install librosa pyttsx3 sounddevice\n"
+            "This mode requires sounddevice. Install with:\n"
+            "  py -3.13 -m pip install sounddevice\n"
             f"\nMissing: {exc}"
         )
 
     for char in phone_number:
         if char == " ":
             time.sleep(pause_ms / 1000.0)
-        elif char in cache:
-            y, sr = cache[char]
+        elif char in audio:
+            y, sr = audio[char]
             sd.play(y, sr)
             sd.wait()
             time.sleep(_GAP_S)
@@ -182,7 +212,8 @@ def main() -> None:
             '  python phone_to_octave.py "555 1234"\n'
             '  python phone_to_octave.py "867-5309" --duration 400\n'
             '  python phone_to_octave.py "1 800 555 0199" --duration 250 --pause 600\n'
-            '  python phone_to_octave.py "555 1234" --mode speech'
+            '  python phone_to_octave.py "555 1234" --mode speech\n'
+            '  python phone_to_octave.py "555 1234" --mode raw'
         ),
     )
     parser.add_argument("phone_number", type=str, help="Phone number string to play")
@@ -205,12 +236,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--mode",
-        choices=["beep", "speech"],
+        choices=["beep", "speech", "raw"],
         default="beep",
         help=(
             "Playback mode: 'beep' (default) plays sine tones via winsound; "
-            "'speech' speaks each digit at its musical pitch using TTS + "
-            "pitch-shifting (requires librosa, pyttsx3, sounddevice)"
+            "'speech' speaks each digit at its musical pitch using pitch-shifting; "
+            "'raw' plays the source audio files unmodified "
+            "(requires librosa, sounddevice)"
         ),
     )
 
@@ -223,8 +255,9 @@ def main() -> None:
         parser.error("--pause must be a positive integer")
 
     if args.mode == "speech":
-        cache = build_speech_cache()
-        play_phone_number_speech(args.phone_number, pause_ms, cache)
+        _play_audio_sequence(args.phone_number, pause_ms, build_speech_cache())
+    elif args.mode == "raw":
+        _play_audio_sequence(args.phone_number, pause_ms, _load_audio_sources())
     else:
         play_phone_number(args.phone_number, args.duration, pause_ms)
 
